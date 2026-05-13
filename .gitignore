@@ -6,6 +6,9 @@ Desktop.ini
 # Editors
 .vscode/
 .idea/
+
+# Claude Code — local settings são específicos do dispositivo
+.claude/settings.local.json
 *.swp
 *.swo
 
