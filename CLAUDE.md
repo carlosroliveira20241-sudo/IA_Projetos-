@@ -21,8 +21,9 @@ humano curada fontes, faz perguntas e direciona a exploração.
 
 **Contrato de imutabilidade do `/raw`:** os arquivos em `/raw` são documentos
 originais exatamente como o humano os depositou. O LLM lê, nunca escreve,
-renomeia ou deleta nada dentro de `/raw`. Qualquer exceção requer instrução
-explícita do humano.
+renomeia ou deleta nada dentro de `/raw` — **exceto** a subpasta `raw/cycles/`,
+onde o LLM salva automaticamente os arquivos de brainstorm durante ciclos ativos
+(ver §5.1). Qualquer outra exceção requer instrução explícita do humano.
 
 ---
 
@@ -135,55 +136,67 @@ mood: ""                  # opcional, livre
 
 ## 5. Fluxos de trabalho
 
-### 5.1 Fluxo de ingestão
+### 5.1 Fluxo de Ciclo (CICLO)
 
-*Acionado quando o humano deposita um arquivo em `/raw` e diz "ingira isso".*
+*Acionado quando o humano escreve `CICLO`.*
 
-1. Ler a fonte integralmente. Para PDFs, extrair texto; para imagens, visualizar;
-   para transcrições, escanear estrutura.
-2. Resumir os principais pontos ao humano (3–7 bullets) e perguntar se deve
-   prosseguir com a ingestão completa ou ajustar ênfase.
-3. Criar página `source` em `wiki/{track}/sources/` com: resumo executivo,
-   pontos-chave, citações notáveis (breves, atribuídas), seção "Conexões"
-   listando entidades e conceitos relacionados, e "Perguntas em aberto".
-4. Identificar entidades e conceitos introduzidos. Para cada um: criar nova
+1. Confirmar o início do ciclo e entrar em **modo escuta silenciosa**.
+2. A cada ideia recebida:
+   - Salvar o conteúdo da ideia no arquivo do ciclo ativo em `raw/cycles/`
+     (um único arquivo por ciclo, apenas conteúdo das ideias, sem timestamps
+     ou comentários do LLM).
+   - Comentar a ideia e fazer perguntas para aprofundar.
+   - Se o humano responder "pula", avançar sem insistir.
+3. O ciclo só encerra quando o humano escreve `INGEST`.
+4. **Nomenclatura do arquivo:** `cycle-YYYY-MM-DD.md`. Se houver mais de um
+   ciclo no mesmo dia: `cycle-YYYY-MM-DD-2.md`, etc.
+
+### 5.2 Fluxo de Ingest (INGEST)
+
+*Acionado quando o humano escreve `INGEST`.*
+
+1. Reportar em tempo real cada etapa executada.
+2. Ler o arquivo do ciclo ativo em `raw/cycles/` integralmente.
+3. Identificar o tema emergente automaticamente e nomeá-lo.
+4. Criar página `source` em `wiki/{track}/sources/` com: resumo executivo,
+   pontos-chave, seção "Conexões" listando entidades e conceitos relacionados,
+   e "Perguntas em aberto".
+5. Identificar entidades e conceitos introduzidos. Para cada um: criar nova
    página (a partir do template correspondente) ou atualizar página existente,
    incrementando `source_count` e adicionando à seção "Fontes referentes".
-5. Atualizar `wiki/index.md` com as novas páginas.
-6. Anexar entrada em `wiki/log.md` com o formato exato:
+6. Atualizar `wiki/index.md` com as novas páginas.
+7. Anexar entrada em `wiki/log.md` com o formato exato:
    ```
-   ## [YYYY-MM-DD] ingest | {Título da Fonte}
+   ## [YYYY-MM-DD] ciclo | {tema emergente identificado}
    Breve descrição de uma linha.
    - Páginas tocadas: [[pag-a]], [[pag-b]], …
    ```
-7. Sinalizar contradições explicitamente: se a nova fonte discorda de página
+8. Sinalizar contradições explicitamente: se o ciclo discorda de página
    existente, adicionar callout Obsidian:
    ```
    > [!warning] Contradição
-   > Fonte X afirma Y; [[pagina-existente]] afirma Z. Aguarda resolução.
+   > Ciclo afirma Y; [[pagina-existente]] afirma Z. Aguarda resolução.
    ```
    Nunca sobrescrever silenciosamente.
+9. Apresentar resumo das páginas criadas e atualizadas.
 
-### 5.2 Fluxo de consulta (query)
+### 5.3 Fluxo PP / P (Perguntas e Propostas)
 
-*Acionado quando o humano faz uma pergunta.*
+*Acionado a qualquer momento, dentro ou fora de um ciclo.*
 
-1. Ler `wiki/index.md` para identificar páginas candidatas.
-2. Ler as páginas candidatas. Seguir links conforme necessário.
-3. Se a pergunta pode ser respondida a partir da wiki, responder com citações
-   `[[nome-da-pagina]]`.
-4. Se a wiki for insuficiente, dizer explicitamente e oferecer: (a) reler
-   fontes brutas específicas, (b) fazer busca na web, (c) sugerir novas fontes
-   para ingerir.
-5. Se a resposta for substancial o suficiente para ser reutilizável (comparação,
-   síntese, nova conexão), oferecer arquivá-la como nova página em
-   `comparisons/`, `syntheses/` ou `reflections/`. **Perguntar antes de arquivar.**
-6. Anexar entrada no log:
-   ```
-   ## [YYYY-MM-DD] query | {pergunta resumida}
-   ```
+- **PP:** Fazer perguntas ao humano para entender melhor o contexto, depois
+  formular propostas com base nas respostas.
+- **P:** Formular propostas diretamente, sem perguntas prévias.
 
-### 5.3 Fluxo de lint
+### 5.4 Fluxo PC / C (Perguntas e Conexões)
+
+*Acionado a qualquer momento, dentro ou fora de um ciclo.*
+
+- **PC:** Fazer perguntas ao humano para entender o que precisa ser conectado,
+  depois mapear conexões entre páginas da wiki (ou entre wiki e ciclo ativo).
+- **C:** Mapear conexões diretamente, sem perguntas prévias.
+
+### 5.5 Fluxo de lint
 
 *Acionado por solicitação explícita, ex: "lint the wiki".*
 
@@ -199,7 +212,7 @@ mood: ""                  # opcional, livre
    ## [YYYY-MM-DD] lint | N problemas encontrados
    ```
 
-### 5.4 Fluxo de output
+### 5.6 Fluxo de output
 
 *Quando o humano pede deck, gráfico ou tabela.*
 
@@ -222,6 +235,7 @@ mood: ""                  # opcional, livre
 - Atualizar `index.md`
 - Atualizar timestamps `updated:`
 - Corrigir erros tipográficos pequenos
+- Salvar ideias em `raw/cycles/` durante ciclo ativo (CICLO)
 
 ### Lote + confirmar antes de executar
 - Criar nova página
@@ -241,7 +255,8 @@ mood: ""                  # opcional, livre
 
 ## 7. O que o LLM nunca deve fazer
 
-1. Modificar qualquer coisa em `/raw`.
+1. Modificar qualquer coisa em `/raw` — exceto escrever em `raw/cycles/` durante
+   ciclo ativo, conforme autorizado em §5.1.
 2. Escrever conteúdo wiki em inglês (chaves estruturais são inglês; prosa é português).
 3. Fabricar citações ou inventar fontes não presentes em `/raw`.
 4. Resolver contradições silenciosamente — sempre surfacear.
@@ -278,6 +293,7 @@ No início de cada sessão Claude Code neste projeto:
 │   ├── papers/
 │   ├── transcripts/
 │   ├── assets/
+│   ├── cycles/             ← arquivos de brainstorm (escritos pelo LLM durante CICLO)
 │   └── README.md
 ├── wiki/                   ← mantido pelo LLM
 │   ├── index.md
