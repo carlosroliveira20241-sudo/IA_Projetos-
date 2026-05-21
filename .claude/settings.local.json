@@ -5,7 +5,8 @@
       "Bash(touch raw/articles/.gitkeep raw/papers/.gitkeep raw/transcripts/.gitkeep raw/assets/.gitkeep wiki/research/entities/.gitkeep wiki/research/concepts/.gitkeep wiki/research/sources/.gitkeep wiki/research/comparisons/.gitkeep wiki/research/syntheses/.gitkeep wiki/personal/entities/.gitkeep wiki/personal/concepts/.gitkeep wiki/personal/sources/.gitkeep wiki/personal/reflections/.gitkeep wiki/personal/syntheses/.gitkeep)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(python -c ' *)"
     ]
   }
 }
