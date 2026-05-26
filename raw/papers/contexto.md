@@ -1,253 +1,281 @@
-Aqui está o prompt pronto pra colar em outro chatbot. Inclui tudo: contexto do negócio, decisões já tomadas, paleta, código já escrito, e onde paramos.
+Planejamento completo da automação de Avaliação de Desempenho (AD) da Fluxo Consultoria via Google Apps Script.
 
 ---
 
-```markdown
-# Contexto: Automação de Painéis Individuais de Avaliação 360° via Google Apps Script
-
 ## Sobre o projeto
-Estou automatizando a geração de painéis individuais de avaliação de competências
-para os membros de uma organização (Fluxo/PAME — empresa júnior universitária).
-O cliente pediu uma planilha por pessoa contendo a média das notas dela em cada
-competência, mais feedbacks textuais recebidos.
 
-## Fonte de dados (a "planilha Hub")
-- **Origem:** Google Form que coleta avaliações 360°. As respostas caem numa
-  aba do tipo "Form Responses".
-- **Formato bruto:** cada linha = uma submissão de um avaliador. Cada coluna
-  segue o padrão `Projeto | Pessoa (Papel) [Competência]`, por exemplo:
-  `DesEq Telecom | Pedro Fonseca (Consultor) [Disciplina]`.
-  Também há colunas de Feedback textual: `Projeto | Feedback | Pessoa`.
-- A planilha bruta tem várias abas derivadas (pivots, resumos por projeto,
-  painéis individuais), mas todas são DERIVADAS do Form Responses.
-  Form Responses é a única fonte da verdade.
+A Fluxo Consultoria realiza ciclos periódicos de Avaliação de Desempenho 360°. Um Google Form coleta avaliações em escala 1–4 por competência, além de feedbacks textuais. O objetivo é automatizar dois processos:
 
-## As 11 competências avaliadas (ordem fixa)
+- Parte 1 — Organização das notas: ler as respostas do Form, calcular médias por competência por membro, gerar uma planilha individual por pessoa a partir de um template, com cor própria por coordenação.
+- Parte 2 — Feedback por IA: gerar feedbacks textuais por competência a partir das médias, com tom de RH (construtivo, não disruptivo). Esta parte só será iniciada após a Parte 1 estar completamente implementada e testada.
+
+A organização tem 5 coordenações: ACE, CCE, QAB, PRO, MNP. Cada membro tem uma função: Consultor de Projetos ou Gerente de Projetos.
+
+---
+
+## Arquitetura — 8 arquivos .gs (em src/)
+
+| Arquivo | Responsabilidade | Status |
+|---|---|---|
+| Config.gs | Constantes globais: IDs, nomes de abas, competências, mapeamento de células | ✅ ESCRITO |
+| Coordenacoes.gs | Paleta de cores fechada por coordenação e função de lookup | ✅ ESCRITO |
+| Util.gs | log(), normalizarNome(), slugNome() | ✅ ESCRITO |
+| Leitura.gs | parseHeader() + parseFeedbackHeader() + lerCadastroDeMembros() + lerFormResponses() | ✅ ESCRITO |
+| Modelo.gs | calcularPainelDaPessoa() — cálculos puros sem APIs do Google | ✅ ESCRITO |
+| Escrita.gs | gravarPainel() + atualizarIndice() + aplicarCores() | ✅ ESCRITO |
+| Main.gs | onOpen(), orquestração geral, validarConsistencia() | ✅ ESCRITO |
+| Testes.gs | Funções de teste manual — apagar após validação | ✅ ESCRITO |
+
+### Princípios técnicos
+
+- Parser de cabeçalho via regex, não índices hardcoded. Padrão: `^(.+?)\s*\|\s*(.+?)\s*\((Gerente|Consultor)\)\s*\[(.+?)\]$`. Adicionar projeto novo no Form não quebra o script.
+- Leitura única por execução: getDataRange().getValues() no início, processar em arrays JS, setValues() no final. Evita estourar o limite de 6 min do Apps Script.
+- Idempotência total: rodar N vezes produz o mesmo resultado. Painel existente é reaproveitado (preserva URL e compartilhamentos); a aba é limpa e reescrita.
+- Separação entre cálculo puro (Modelo.gs, sem APIs) e escrita (Escrita.gs, com APIs) — Modelo.gs é testável isoladamente.
+- Log persistente em aba dedicada na planilha-índice, não console.log que some.
+- Validação de consistência (nomes normalizados — sem acento, lowercase) entre cadastro e Form antes de geração em massa.
+
+---
+
+## Fonte de dados
+
+- Form Responses: cada linha = uma submissão de um avaliador. Colunas de nota no padrão `Projeto | Pessoa (Papel) [Competência]`. Colunas de feedback textual no padrão `Projeto | Feedback | Pessoa`. Primeiras colunas fixas: Carimbo de data/hora | Endereço de e-mail | Nome | Leva de entrada | Primeiro projeto.
+- Cadastro (Base Autoavaliação e Avaliação de Equipe): planilha com abas "Projetos e Equipes {COORD}". Cada aba tem colunas: Projeto (A) | Equipe (B, fórmula) | Gerente (C) | Consultores (D-I). Coordenação inferida do nome da aba. Não tem coluna de email.
+- Ambas são lidas uma única vez por execução e passadas como parâmetro para as funções de cálculo.
+
+### Inferência de função e coordenação (sem cadastro explícito)
+
+O script infere do Cadastro:
+- Coordenação → nome da aba ("Projetos e Equipes ACE" → coord = "ACE")
+- Função → quem aparece na col C (Gerente) em qualquer projeto → funcao = "Gerente"; demais → "Consultor"
+- Confirmação → cabeçalhos do Form Responses têm `Pessoa (Gerente)` ou `Pessoa (Consultor)`, que sobrescreve a inferência do Cadastro (mais confiável)
+
+Email: campo vazio no painel atual. Pode ser preenchido manualmente na planilha-índice.
+
+---
+
+## Competências por função
+
+Consultor (8 competências):
 1. Disciplina
 2. Organização
 3. Adaptabilidade
-4. Trabalho em equipe
+4. Trabalho em Equipe
 5. Influência e Mobilização
 6. Comunicação Assertiva
 7. Excelência Técnica
-8. Gestão de riscos
+8. Gestão de Riscos
+
+Gerente (11 competências = as 8 acima + 3):
 9. Delegar Tarefas
 10. Gestão de Pessoas
 11. Pensamento Estratégico e Holístico
 
-Cada avaliação é uma nota de 1 a 4 (vi isso nos dados).
+⚠️ O Form Responses usa case diferente em 2 competências:
+- Form: "Trabalho em equipe" → Config: "Trabalho em Equipe"
+- Form: "Gestão de riscos" → Config: "Gestão de Riscos"
+O matching é feito via normalizarNome() (lowercase + sem acento) — não causa problema.
 
-## Cadastro de membros (planilha SEPARADA)
-Existe uma planilha externa já existente com cadastro pessoa → coordenação → email.
-Não é a mesma da Form Responses. O script precisa abri-la por ID via
-`SpreadsheetApp.openById(...)`.
+---
 
-## Coordenações existentes
-CCE, ACE, QAB, PRO, MNP. Cada coordenação define a cor visual do painel
-da pessoa.
+## Objeto painel — contrato entre Modelo.gs e Escrita.gs
 
-## Decisões de arquitetura já fechadas
-
-1. **Uma planilha por pessoa**, salva como arquivo independente no Google Drive.
-2. **Atualização manual** via menu customizado na planilha Hub (`onOpen()` +
-   `SpreadsheetApp.getUi()`).
-3. **Fonte da verdade continua sendo o Form Responses** + cadastro externo.
-4. **Cor da planilha vem da coordenação** da pessoa.
-5. **Organização no Drive em subpastas por coordenação**:
-   ```
-   📁 Painéis de Membros
-      📁 CCE
-      📁 ACE
-      📁 QAB
-      📁 PRO
-      📁 MNP
-   ```
-6. **Idempotência total**: rodar o script N vezes produz o mesmo resultado
-   (limpa e reescreve, nunca acumula).
-7. **Código separado em vários arquivos `.gs`** (não tudo em Code.gs):
-   - `Config.gs` — constantes (IDs, nomes de aba, lista de competências)
-   - `Coordenacoes.gs` — paleta de cores
-   - `Leitura.gs` — parser de cabeçalho + leitura de Form Responses e cadastro
-   - `Modelo.gs` — cálculos puros (médias, top 3, agrupar feedbacks). Sem APIs do Google.
-   - `Escrita.gs` — criar/atualizar planilha-filha + formatação com cores
-   - `Main.gs` — menu, orquestração, validação de consistência
-   - `Util.gs` — helpers
-
-## Princípios técnicos adotados
-- **Parser de cabeçalho via regex** (não hardcodar índices). O padrão é
-  `^(.+?)\s*\|\s*(.+?)\s*\((Gerente|Consultor)\)\s*\[(.+?)\]$`.
-  Captura projeto, pessoa, papel, competência. Adicionar projeto novo no
-  Form não quebra o script.
-- **Uma única leitura, uma única escrita**: `getDataRange().getValues()`
-  no início, processar tudo em arrays JS, `setValues()` no final.
-  Evita estourar o limite de 6min do Apps Script.
-- **Logs em aba dedicada** na Hub (não `console.log` que some).
-- **Fallback de cor**: paleta `DEFAULT` cinza pra casos onde a coordenação
-  está vazia ou desconhecida (evita quebrar o script).
-
-## Paleta de cores fechada
-
-| Coord | primaria   | secundaria | texto    |
-|-------|-----------|-----------|----------|
-| CCE   | `#00695C` | `#E0F2F1` | `#FFFFFF` |
-| ACE   | `#6A1B9A` | `#F3E5F5` | `#FFFFFF` |
-| QAB   | `#E65100` | `#FFF3E0` | `#FFFFFF` |
-| PRO   | `#1565C0` | `#E3F2FD` | `#FFFFFF` |
-| MNP   | `#AD1457` | `#FCE4EC` | `#FFFFFF` |
-| DEFAULT | `#424242` | `#F5F5F5` | `#FFFFFF` |
-
-## Código já escrito
-
-### Config.gs
-\`\`\`javascript
-const CONFIG = {
-  ABA_FORM: 'Respostas ao formulário 1',  // AJUSTAR
-  ABA_LOG: 'Log',
-  CADASTRO_PLANILHA_ID: 'COLE_O_ID_AQUI',
-  CADASTRO_ABA: 'Membros',
-  CADASTRO_COL_NOME: 'Nome',
-  CADASTRO_COL_COORD: 'Coordenação',
-  CADASTRO_COL_EMAIL: 'Email',
-  PASTA_PAINEIS_ID: 'COLE_O_ID_AQUI',
-  COMPETENCIAS: [
-    'Disciplina', 'Organização', 'Adaptabilidade', 'Trabalho em equipe',
-    'Influência e Mobilização', 'Comunicação Assertiva', 'Excelência Técnica',
-    'Gestão de riscos', 'Delegar Tarefas', 'Gestão de Pessoas',
-    'Pensamento Estratégico e Holístico'
-  ],
-  TOP_N: 3
-};
-\`\`\`
-
-### Coordenacoes.gs
-\`\`\`javascript
-const COORDENACOES = {
-  'CCE': { primaria: '#00695C', secundaria: '#E0F2F1', texto: '#FFFFFF' },
-  'ACE': { primaria: '#6A1B9A', secundaria: '#F3E5F5', texto: '#FFFFFF' },
-  'QAB': { primaria: '#E65100', secundaria: '#FFF3E0', texto: '#FFFFFF' },
-  'PRO': { primaria: '#1565C0', secundaria: '#E3F2FD', texto: '#FFFFFF' },
-  'MNP': { primaria: '#AD1457', secundaria: '#FCE4EC', texto: '#FFFFFF' },
-  'DEFAULT': { primaria: '#424242', secundaria: '#F5F5F5', texto: '#FFFFFF' }
-};
-
-function corDaCoordenacao(nomeCoord) {
-  if (!nomeCoord) return COORDENACOES['DEFAULT'];
-  const chave = String(nomeCoord).trim().toUpperCase();
-  return COORDENACOES[chave] || COORDENACOES['DEFAULT'];
-}
-
-function coordenacoesConhecidas() {
-  return Object.keys(COORDENACOES).filter(k => k !== 'DEFAULT');
-}
-\`\`\`
-
-### Leitura.gs (cadastro externo — função parcial)
-\`\`\`javascript
-function lerCadastroDeMembros() {
-  let planilha;
-  try {
-    planilha = SpreadsheetApp.openById(CONFIG.CADASTRO_PLANILHA_ID);
-  } catch (e) {
-    throw new Error(
-      `Não consegui abrir a planilha de cadastro. Verifique ID e permissões. ${e.message}`
-    );
-  }
-  const aba = planilha.getSheetByName(CONFIG.CADASTRO_ABA);
-  if (!aba) throw new Error(`Aba "${CONFIG.CADASTRO_ABA}" não encontrada.`);
-  const dados = aba.getDataRange().getValues();
-  if (dados.length < 2) return {};
-  const cabecalho = dados[0].map(c => String(c).trim());
-  const idxNome = cabecalho.indexOf(CONFIG.CADASTRO_COL_NOME);
-  const idxCoord = cabecalho.indexOf(CONFIG.CADASTRO_COL_COORD);
-  const idxEmail = cabecalho.indexOf(CONFIG.CADASTRO_COL_EMAIL);
-  if (idxNome === -1 || idxCoord === -1) {
-    throw new Error(`Colunas obrigatórias não encontradas: ${cabecalho.join(', ')}`);
-  }
-  const cadastro = {};
-  dados.slice(1).forEach(linha => {
-    const nome = String(linha[idxNome] || '').trim();
-    if (!nome) return;
-    cadastro[nome] = {
-      coordenacao: String(linha[idxCoord] || '').trim() || null,
-      email: idxEmail >= 0 ? String(linha[idxEmail] || '').trim() || null : null
-    };
-  });
-  return cadastro;
-}
-
-// AINDA FALTA: função lerFormResponses() com o parser de cabeçalho.
-// Pseudocódigo já desenhado:
-//   parseHeader(titulo) extrai {projeto, pessoa, papel, competencia} via regex
-//   lerFormResponses() devolve { linhas, indice, cabecalho }
-//   onde indice = { pessoa: { competencia: [colunas] } }
-\`\`\`
-
-## Estrutura de dados do "painel" (modelo em memória)
-\`\`\`javascript
+```javascript
 {
-  pessoa: 'Pedro Carneiro',
-  coordenacao: 'CCE',
-  email: 'pedro@example.com',
-  dataEmissao: Date,
-  medias: {
+  pessoa: string,
+  coordenacao: string,           // 'CCE' | 'ACE' | 'QAB' | 'PRO' | 'MNP'
+  funcao: string,                // 'Consultor' | 'Gerente'
+  email: string,                 // '' (vazio — não disponível no Cadastro)
+  medias: {                      // float por competência (apenas as da função)
     'Disciplina': 3.0,
     'Organização': 3.5,
-    // ... 11 competências
+    // ...
   },
-  // ainda preciso desenhar a parte de feedbacks textuais e top 3 / a desenvolver
+  mediaGeral: float,
+  feedbacks: [string],           // textos brutos de todos os campos "Projeto | Feedback | Pessoa"
+  topPontosFortes: [string x3],      // Top 3 maiores médias
+  topPontosDesenvolver: [string x3]  // Bottom 3 menores médias
 }
-\`\`\`
-
-## Onde paramos
-Já estão prontos: `Config.gs`, `Coordenacoes.gs` e a função `lerCadastroDeMembros`
-em `Leitura.gs`.
-
-Próximos passos na ordem (sugerida — dentro pra fora):
-1. **`Leitura.gs` completo** — implementar `parseHeader()` e `lerFormResponses()`
-   que retornam o índice `{pessoa: {competencia: [colunas]}}`.
-2. **`Modelo.gs`** — funções puras: `calcularPainelDaPessoa(nome, linhas, indice, cadastro)`
-   retornando o objeto painel acima. Inclui também agrupar feedbacks textuais
-   e calcular top 3 / pontos a desenvolver.
-3. **`Escrita.gs`** — `gravarPainel(painel)`:
-   - Procura/cria pasta da coordenação dentro de PASTA_PAINEIS_ID.
-   - Procura/cria arquivo `Painel - {nome}` dentro dessa pasta.
-   - `aba.clear()` + montar matriz de saída + `setValues()` único.
-   - Aplicar formatação usando `corDaCoordenacao(painel.coordenacao)`:
-     cabeçalho com fundo `primaria` e texto `texto`; seções com `secundaria`;
-     `aba.setTabColor(cores.primaria)`.
-4. **`Main.gs`** — `onOpen()` cria menu "🤖 Automação" com:
-   - "Atualizar painel de uma pessoa" (prompt pra escolher nome)
-   - "Atualizar painéis de TODOS"
-   - "Validar consistência cadastro × Form Responses" (lista quem está num e não no outro)
-   - "Abrir pasta de painéis"
-5. **`Util.gs`** — logger pra aba Log, normalizador de nome (caixa, acentos),
-   slug pra nome de arquivo.
-
-## Atenções já mapeadas
-
-- **Nomes inconsistentes entre Form e cadastro** (ex: "Anna Júlia" no Form vs
-  "Anna Júlia Marques dos Santos" no cadastro). A função
-  `validarConsistencia()` no menu deve listar essas divergências antes de
-  rodar a geração em massa.
-- **Permissões da planilha externa**: quem executa o script precisa ter
-  acesso de leitura.
-- **Cache de leitura no loop em massa**: ler Form Responses e cadastro
-  UMA vez no início e passar pros cálculos individuais. Não reler dentro
-  do loop.
-
----
-
-**Por favor, continue de onde parei.** Comece pela implementação completa
-do `Leitura.gs` (parser de cabeçalho + leitura do Form Responses), depois
-podemos avançar pro `Modelo.gs`.
 ```
 
+Nota: feedbacks é uma lista plana (não por competência), pois o Form tem um campo de feedback por projeto, não por competência. Ajuste para Parte 2 se necessário.
+
 ---
 
-Algumas observações sobre como usar:
+## Mapeamento de células do template — CONFIRMADO (leitura direta do xlsx em 2026-05-26)
 
-**Por que está em markdown dentro de um bloco de código:** assim você copia o conteúdo inteiro de uma vez e cola direto no próximo chat sem perder formatação.
+O template tem duas abas: "Exemplo — Consultor" e "Exemplo — Gerente". Após makeCopy(), a aba correspondente à função da pessoa é mantida e a outra é deletada.
 
-**O que omiti de propósito:** detalhes de UX da conversa anterior (perguntas que fiz, alternativas que considerei e descartei), porque o novo chatbot não precisa disso — só do estado atual e direção a seguir. Mantive os "porquês" das decisões importantes (idempotência, parser de cabeçalho, separação em arquivos) porque elas são princípios que devem guiar o código futuro.
+### Aba Consultor
 
-**Se quiser ajustar antes de usar:** me avisa se quer que eu acrescente alguma restrição (ex: "responda em português", "sou iniciante em Apps Script, explique cada linha"), o link da planilha original, ou se quer que eu encurte mais agressivamente.
+Notas em **coluna D**, feedback IA (Parte 2) em **coluna B**:
+
+| Linha | Col B | Col C | Col D |
+|---|---|---|---|
+| 1 | Nome | — | — |
+| 2 | Função | Consultor de Projetos | — |
+| 3 | Ciclo da AD | Maio de 2026 | — |
+| 4 | Coordenação | ACE | — |
+| 6 | DISCIPLINA (label) | — | — |
+| 7 | [AI feedback] | — | **nota** → D7 |
+| 10 | ORGANIZAÇÃO (label) | — | — |
+| 11 | [AI feedback] | — | **nota** → D11 |
+| 14 | ADAPTABILIDADE | — | — |
+| 15 | [AI feedback] | — | D15 |
+| 18 | TRABALHO EM EQUIPE | — | — |
+| 19 | [AI feedback] | — | D19 |
+| 22 | INFLUÊNCIA E MOBILIZAÇÃO | — | — |
+| 23 | [AI feedback] | — | D23 |
+| 26 | COMUNICAÇÃO ASSERTIVA | — | — |
+| 27 | [AI feedback] | — | D27 |
+| 30 | EXCELÊNCIA TÉCNICA | — | — |
+| 31 | [AI feedback] | — | D31 |
+| 34 | GESTÃO DE RISCOS | — | — |
+| 35 | [AI feedback] | — | D35 |
+| 38 | SÍNTESE GERAL (label) | — | — |
+| 39 | [AI feedback síntese] | — | **D39** (síntese) |
+
+Células no Config.gs:
+- CELULAS_NOTAS_CONSULTOR: ['D7','D11','D15','D19','D23','D27','D31','D35']
+- CELULA_SINTESE_CONSULTOR: 'D39'
+- Header: B1=Nome, C2=Função, C3=Ciclo, C4=Coordenação
+
+### Aba Gerente
+
+Notas em **coluna C** (⚠️ NÃO coluna D — corrige versão anterior do contexto), feedback IA em **coluna A**:
+
+| Linha | Col A | Col B | Col C |
+|---|---|---|---|
+| 1 | Nome | — | — |
+| 2 | Função | Gerente de Projetos | — |
+| 3 | Ciclo da AD | Maio de 2026 | — |
+| 4 | Coordenação | PRO | — |
+| 6 | DISCIPLINA (label) | — | — |
+| 7 | [AI feedback] | — | **nota** → C7 |
+| 10–35 | (idem Consultor) | — | C11..C35 |
+| 38 | DELEGAR TAREFAS | — | — |
+| 39 | [AI feedback] | — | C39 |
+| 42 | GESTÃO DE PESSOAS | — | — |
+| 43 | [AI feedback] | — | C43 |
+| 46 | PENSAMENTO ESTRATÉGICO E HOLÍSTICO | — | — |
+| 47 | [AI feedback] | — | C47 |
+| 50 | SÍNTESE GERAL (label) | — | — |
+| 51 | [AI feedback síntese] | — | **C51** (síntese) |
+
+Células no Config.gs:
+- CELULAS_NOTAS_GERENTE: ['C7','C11','C15','C19','C23','C27','C31','C35','C39','C43','C47']
+- CELULA_SINTESE_GERENTE: 'C51'
+- Header: A1=Nome, B2=Função, B3=Ciclo, B4=Coordenação
+
+---
+
+## Paleta de cores por coordenação
+
+| Coordenação | Primária | Secundária | Texto |
+|---|---|---|---|
+| CCE | #00695C | #E0F2F1 | #FFFFFF |
+| ACE | #6A1B9A | #F3E5F5 | #FFFFFF |
+| QAB | #E65100 | #FFF3E0 | #FFFFFF |
+| PRO | #1565C0 | #E3F2FD | #FFFFFF |
+| MNP | #AD1457 | #FCE4EC | #FFFFFF |
+| DEFAULT | #424242 | #F5F5F5 | #FFFFFF |
+
+Fallback DEFAULT para coordenação vazia ou desconhecida — nunca quebra o script.
+
+---
+
+## Organização no Drive
+
+```
+📁 Painéis de Membros — AD Maio de 2026  (ID persistido via PropertiesService)
+   📁 CCE
+   📁 ACE
+   📁 QAB
+   📁 PRO
+   📁 MNP
+```
+
+Subpastas criadas automaticamente se não existirem.
+
+---
+
+## IDs das planilhas — estado em 2026-05-26
+
+| Planilha | ID | Nome real no Drive | Status |
+|---|---|---|---|
+| Template | 1lYLe4NPCvWMnJlpAqACoq7w6A5sEwgYg0IgBqEMxZfE | Template de Exemplo - AD | ✅ confirmado |
+| Cadastro | 1A-rtAII1sIqDULn_ak4d4F1_yhXfEJoOIb34ljlJLVE | Cópia de Cópia de Base Autoavaliação e Avaliação de Equipe | ✅ confirmado (tem abas "Projetos e Equipes {COORD}") |
+| Form Responses | COLE_O_ID_AQUI | A ser confirmado | ⚠️ PENDENTE |
+| Planilha-índice | 1eOJIjW_gkNfNPTcEYbcq52nXpPH5SHYujkXRfNqR0IM | Modelo de Planilha Índice | ✅ confirmado |
+
+---
+
+## Estrutura da Planilha-índice
+
+Abas: Geral, ACE, CCE, MNP, PRO, QAB
+
+Aba Geral: resumo com total de membros e reuniões por coordenação (fórmulas automáticas).
+Abas de coordenação (ex: ACE):
+- L1: "Índice de Membros - ACE"
+- L2: cabeçalho — A=# | B=Nome | C=E-mail | D=Função | E=Link da Planilha | F=Reunião Agendada | G=Reunião Realizada | H=Observações
+- L3+: dados dos membros
+
+O script escreve nas colunas B-E de cada aba de coordenação.
+
+---
+
+## Estrutura do Cadastro (Base Autoavaliação e Avaliação de Equipe)
+
+Abas no arquivo:
+- "Projetos e Equipes ACE" / "...CCE" / "...MNP" / "...PRO" / "...QAB" → usadas pelo script
+- "Cópia de Projetos e Equipes" → aba combinada, ignorada pelo script
+- "Competencias" → descrições das 11 competências, não usada pelo script
+
+Estrutura de cada aba "Projetos e Equipes {COORD}":
+- L1: Projeto | Equipe | Gerente | Consultores | (colunas D-I para consultores)
+- L2+: dados de projetos (col A = nome do projeto, col C = gerente, cols D-I = consultores)
+- Após projetos: lista calculada por fórmula de todos os membros únicos (ignorada pelo script)
+
+---
+
+## Menu "🤖 AD Fluxo"
+
+- Atualizar painel de uma pessoa… (prompt para digitar nome)
+- Atualizar painéis de TODOS
+- Validar consistência cadastro × Form Responses
+- Abrir pasta de painéis no Drive
+- Limpar log
+
+---
+
+## Ordem de implementação — estado atual
+
+1. Config.gs ✅
+2. Coordenacoes.gs ✅
+3. Util.gs ✅
+4. Leitura.gs ✅
+5. Modelo.gs ✅
+6. Escrita.gs ✅
+7. Main.gs ✅
+8. Testes com dados reais → **PRÓXIMA ETAPA**
+   - [ ] Preencher FORM_RESPONSES_ID em Config.gs
+   - [ ] Confirmar ABA_FORM_RESPONSES (provavelmente 'Respostas ao formulário 1')
+   - [ ] Colar os 8 arquivos no Apps Script editor (planilha-índice → Extensões → Apps Script)
+   - [ ] Rodar testeLerCadastro() → ver membros encontrados
+   - [ ] Rodar testeLerFormResponses() → ver pessoas no Form
+   - [ ] Rodar testeValidarConsistencia() → resolver divergências de nome
+   - [ ] Rodar testeGravarUmPainel() (NOME_TESTE = nome real) → validar painel gerado
+   - [ ] Rodar atualizarTodos() → verificar todos os painéis e subpastas
+9. Parte 2 (Gemini via UrlFetchApp) — só após etapa 8 aprovada
+
+---
+
+## Pontos a confirmar antes de rodar pela primeira vez
+
+- [x] Nome exato das abas do template: "Exemplo — Consultor" e "Exemplo — Gerente" ✅
+- [x] Células do template Consultor: D7, D11...D35, síntese D39 ✅
+- [x] Células do template Gerente: C7, C11...C47, síntese C51 ✅ (era D antes — corrigido)
+- [x] Nomes e colunas do Cadastro: abas "Projetos e Equipes {COORD}", col C=Gerente, cols D-I=Consultores ✅
+- [ ] ID do Form Responses real — usuário vai fornecer
+- [ ] Nome exato da aba de respostas do Form (ABA_FORM_RESPONSES)
+- [ ] Divergências de nome entre Form e Cadastro — validarConsistencia() vai listar
