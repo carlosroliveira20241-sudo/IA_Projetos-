@@ -199,14 +199,14 @@ Subpastas criadas automaticamente se não existirem.
 
 ---
 
-## IDs das planilhas — estado em 2026-05-26
+## IDs das planilhas — estado em 2026-05-27
 
-| Planilha | ID | Nome real no Drive | Status |
+| Planilha | Constante em Config.gs | ID | Status |
 |---|---|---|---|
-| Template | 1lYLe4NPCvWMnJlpAqACoq7w6A5sEwgYg0IgBqEMxZfE | Template de Exemplo - AD | ✅ confirmado |
-| Cadastro | 1A-rtAII1sIqDULn_ak4d4F1_yhXfEJoOIb34ljlJLVE | Cópia de Cópia de Base Autoavaliação e Avaliação de Equipe | ✅ confirmado (tem abas "Projetos e Equipes {COORD}") |
-| Form Responses | COLE_O_ID_AQUI | A ser confirmado | ⚠️ PENDENTE |
-| Planilha-índice | 1eOJIjW_gkNfNPTcEYbcq52nXpPH5SHYujkXRfNqR0IM | Modelo de Planilha Índice | ✅ confirmado |
+| Template | `ID_DO_TEMPLATE_DE_EXEMPLO` | `1uM6Wr6gp6N8pW_gb8lYuuY3JTFYmuZ45tKesjisEFWQ` | ✅ confirmado |
+| Cadastro (Base Autoavaliação e Avaliação de Equipe) | `ID_PLANILHA_PROJETOS_E_EQUIPES` | `1KSnCTmL5F8aecSiNYBGDAcOoYHQM7gTyFGpgxNsCsaE` | ✅ confirmado (tem abas "Projetos e Equipes {COORD}") |
+| Form Responses (Avaliação de Projetos) | `ID_AVALIACAO_DE_PROJETOS` | `1bUWKFtNYIYLiuC_z7Qu-c2XiAmnCHCvIb2wyrOdjgKU` | ✅ confirmado |
+| Planilha-índice | `ID_INDICE` | `1wpJBrxEG_UEfr3uP_7fO6ie6hj-lNSxjQl7YW3VYZZI` | ✅ confirmado |
 
 ---
 
@@ -258,8 +258,8 @@ Estrutura de cada aba "Projetos e Equipes {COORD}":
 6. Escrita.gs ✅
 7. Main.gs ✅
 8. Testes com dados reais → **PRÓXIMA ETAPA**
-   - [ ] Preencher FORM_RESPONSES_ID em Config.gs
-   - [ ] Confirmar ABA_FORM_RESPONSES (provavelmente 'Respostas ao formulário 1')
+   - [x] Preencher `ID_AVALIACAO_DE_PROJETOS` em Config.gs ✅
+   - [x] Confirmar `ABA_DE_RESPOSTAS_DO_FORMS` = `'Respostas ao formulário 1'` ✅
    - [ ] Colar os 8 arquivos no Apps Script editor (planilha-índice → Extensões → Apps Script)
    - [ ] Rodar testeLerCadastro() → ver membros encontrados
    - [ ] Rodar testeLerFormResponses() → ver pessoas no Form
@@ -276,6 +276,6 @@ Estrutura de cada aba "Projetos e Equipes {COORD}":
 - [x] Células do template Consultor: D7, D11...D35, síntese D39 ✅
 - [x] Células do template Gerente: C7, C11...C47, síntese C51 ✅ (era D antes — corrigido)
 - [x] Nomes e colunas do Cadastro: abas "Projetos e Equipes {COORD}", col C=Gerente, cols D-I=Consultores ✅
-- [ ] ID do Form Responses real — usuário vai fornecer
-- [ ] Nome exato da aba de respostas do Form (ABA_FORM_RESPONSES)
+- [x] ID do Form Responses real — `1bUWKFtNYIYLiuC_z7Qu-c2XiAmnCHCvIb2wyrOdjgKU` preenchido em Config.gs ✅
+- [x] Nome exato da aba de respostas do Form — `ABA_DE_RESPOSTAS_DO_FORMS = 'Respostas ao formulário 1'` ✅
 - [ ] Divergências de nome entre Form e Cadastro — validarConsistencia() vai listar
