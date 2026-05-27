@@ -13,7 +13,8 @@ descritiva. Organizado por trilha e tipo.
 <!-- Pessoas, organizações, ferramentas, datasets, produtos relevantes
      para a trilha de pesquisa/técnica. -->
 
-*(vazio — nenhuma entidade ingestionada ainda)*
+- [[fluxo-consultoria]] · organization · stub — Consultoria que realiza ciclos de AD 360°; contexto principal da automação via GAS.
+- [[google-apps-script]] · tool · stub — Plataforma JavaScript do Google Workspace; base técnica da automação de AD.
 
 ---
 
@@ -21,7 +22,8 @@ descritiva. Organizado por trilha e tipo.
 
 <!-- Ideias, métodos, teorias e frameworks da trilha de pesquisa/técnica. -->
 
-*(vazio)*
+- [[avaliacao-desempenho-360]] · concept · stub — Metodologia de feedback multidirecional por competências; adotada pela Fluxo.
+- [[arquitetura-apps-script-em-camadas]] · concept · stub — Padrão de 7 arquivos `.gs` com separação cálculo puro / escrita / orquestração.
 
 ---
 
@@ -29,7 +31,7 @@ descritiva. Organizado por trilha e tipo.
 
 <!-- Uma página por fonte ingestionada na trilha de pesquisa. -->
 
-*(vazio)*
+- [[automacao-ad-fluxo]] · source · draft — Planejamento completo da automação de AD da Fluxo Consultoria via Apps Script.
 
 ---
 
