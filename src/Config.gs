@@ -1,6 +1,6 @@
 // =============================================================
 // Constantes globais, basicamente todos os nomes que a gente vai usar ao longo do código vão ficar definidos nesse arquivo
-// Atualizar os IDs das planilhas e confirmar ?? antes de rodar.
+// Atualizar os IDs das planilhas e confirmar IDs antes de rodar.
 // =============================================================
 
 // IDs das 4 planilhas do Drive
@@ -61,9 +61,9 @@ var COMPETENCIAS_GERENTE = [
   'Pensamento Estratégico e Holístico'
 ];
 
-// ── Mapeamento de células: Consultor (notas col D, feedback IA col B) ──────
-var CELULAS_NOTAS_CONSULTOR      = ['D7','D11','D15','D19','D23','D27','D31','D35'];
-var CELULA_SINTESE_CONSULTOR     = 'D39';
+// ── Mapeamento de células: Consultor (notas col D, feedback IA col B) -- são as células relacionadas ao consultor
+var CELULAS_NOTAS_CONSULTOR      = ['D7','D11','D15','D19','D23','D27','D31','D35']; // média de cada uma das competências
+var CELULA_MEDIA_CONSULTOR     = 'D39'; //media geral
 var CELULA_FEEDBACK_IA_CONSULTOR = 'B39'; // Parte 2
 
 var CELULA_NOME_CONSULTOR   = 'B1';
@@ -71,9 +71,9 @@ var CELULA_FUNCAO_CONSULTOR = 'C2';
 var CELULA_CICLO_CONSULTOR  = 'C3';
 var CELULA_COORD_CONSULTOR  = 'C4';
 
-// ── Mapeamento de células: Gerente (notas col C, feedback IA col A) ────────
-var CELULAS_NOTAS_GERENTE      = ['C7','C11','C15','C19','C23','C27','C31','C35','C39','C43','C47'];
-var CELULA_SINTESE_GERENTE     = 'C51';
+// ── Mapeamento de células: Gerente (notas col C, feedback IA col A), são as células relacionadas ao gerente
+var CELULAS_NOTAS_GERENTE      = ['C7','C11','C15','C19','C23','C27','C31','C35','C39','C43','C47']; // cada uma
+var CELULA_MEDIA_GERENTE     = 'C51'; // geral
 var CELULA_FEEDBACK_IA_GERENTE = 'A51'; // Parte 2
 
 var CELULA_NOME_GERENTE   = 'A1';

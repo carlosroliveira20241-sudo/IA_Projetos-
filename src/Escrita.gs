@@ -1,24 +1,34 @@
 // =============================================================
-// Escrita.gs — Criar/atualizar painéis individuais + índice
+// Escrita.gs — Criar/atualizar painéis individuais + e colocar tudo na planilha índice (vulgo essa aqui que os scripts tão)
 // =============================================================
 
-function obterOuCriarSubpasta(pastaBase, nomeSubpasta) {
-  var subpastasEncontradas = pastaBase.getFoldersByName(nomeSubpasta);
-  return subpastasEncontradas.hasNext() ? subpastasEncontradas.next() : pastaBase.createFolder(nomeSubpasta);
+function obterOuCriarSubpasta(pastaBase, nomeSubpasta){
+  // a primeira coisa que vou fazer é uma função que verifica se a subpasta existe ou não, pra criar ou não a pasta individual com a planilha individual do membro, se tiver pasta, vai nela, se não tiver cria uma
+
+  var subPastasEncontradas = pastaBase.getFoldersByName(nomeSubpasta)
+  return subPastasEncontradas.hasNext() ? subPastasEncontradas.next() : pastaBase.createFolder(nomeSubpasta)
 }
 
-function obterOuCriarPainelFile(pastaDaCoordenacao, nomeArquivo, funcao) {
-  var arquivosEncontrados = pastaDaCoordenacao.getFilesByName(nomeArquivo);
-  if (arquivosEncontrados.hasNext()) return { file: arquivosEncontrados.next(), novo: false };
 
-  // Criar cópia do template e deletar a aba que não corresponde à função
-  var arquivoCopiado      = DriveApp.getFileById(ID_DO_TEMPLATE_DE_EXEMPLO).makeCopy(nomeArquivo, pastaDaCoordenacao);
-  var spreadsheet         = SpreadsheetApp.openById(arquivoCopiado.getId());
-  var nomeAbaParaRemover  = funcao === 'Gerente' ? ABA_TEMPLATE_CONSULTOR : ABA_TEMPLATE_GERENTE;
-  var abaParaRemover      = spreadsheet.getSheetByName(nomeAbaParaRemover);
-  if (abaParaRemover && spreadsheet.getNumSheets() > 1) spreadsheet.deleteSheet(abaParaRemover);
+function obterOuCriarArquivoDePainel(pastaDaCoordenacao, nomeArquivo, funcao){
+  // ele verifica se o arquivo existe, e se não existir, cria ele
+  var arquivosEncontrados = pastaDaCoordenacao.getFilesByName(nomeArquivo)
+  if(arquivosEncontrados.hasNext()) return {file: arquivosEncontrados.next(), novo: false}
 
-  return { file: arquivoCopiado, novo: true };
+  // criar cópia do template e deletar aba que não corresponde ao que à função faz , ou seja, ele vai criar uma aba de gerente e de consultor, e vai deletar a que não se encaixa de acordo com a função do membro
+
+  // vai achar o arquivo do painel do membro e vai abrir ele
+  var arquivoCopiado = DriveApp.getFileById(ID_DO_TEMPLATE_DE_EXEMPLO).makeCopy(nomeArquivo, pastaDaCoordenacao)
+  var spreadsheet = SpreadsheetApp.openById(arquivoCopiado.getId())
+
+  // vai pegar a aba pelo nome e vai remover ela pelo nome
+  var nomeAbaParaRemover = funcao === 'Gerente' ? ABA_TEMPLATE_CONSULTOR : ABA_TEMPLATE_GERENTE
+  var abaParaRemover = spreadsheet.getSheetByName(nomeAbaParaRemover)
+
+  // se a aba para remover for válida e tiver mais de 1 aba, ele deleta
+  if(abaParaRemover && spreadsheet.getNumSheets() > 1) spreadsheet.deleteSheet(abaParaRemover);
+
+  return {file: arquivoCopiado, novo: true};
 }
 
 /*
@@ -26,21 +36,26 @@ function obterOuCriarPainelFile(pastaDaCoordenacao, nomeArquivo, funcao) {
  * - Header (linhas 1-4): cor primária, texto branco
  * - Labels de competência (linha imediatamente acima de cada nota): cor secundária
  * - Label de síntese geral: cor primária
- * - Tab: cor primária
+ * - Tabela: cor primária
  */
-function aplicarCores(aba, cores, funcao) {
+
+function aplicarCores(aba,cores,funcao){
   var ultimaColuna = aba.getLastColumn() || 6;
 
-  // Header
-  aba.getRange(1, 1, 4, ultimaColuna)
-     .setBackground(cores.primaria)
-     .setFontColor(cores.texto);
+  // cabeçalho, basicamente nessa parte vou colocar o que vai aparecer em cima dos dados, rotulando eles
 
-  // Labels de competência e notas
+  aba.getRange(1,1,4,ultimaColuna)
+  .setBackground(cores.primaria)
+  .setFontColor(cores.texto)
+
+  // A label padrão de competência e notas
+
   var celulasNotas = funcao === 'Gerente' ? CELULAS_NOTAS_GERENTE : CELULAS_NOTAS_CONSULTOR;
   celulasNotas.forEach(function(celulaDaNota) {
+    // vai passar pelas células das notas e deixar elas devidamente rotuladas
     var linhaDaNota  = parseInt(celulaDaNota.replace(/[A-Z]/gi, ''));
     var linhaDaLabel = linhaDaNota - 1;
+    // colocando cores e setando tudo
     aba.getRange(linhaDaLabel, 1, 1, ultimaColuna)
        .setBackground(cores.secundaria)
        .setFontColor(cores.primaria)
@@ -48,114 +63,153 @@ function aplicarCores(aba, cores, funcao) {
   });
 
   // Label de síntese (linha acima da célula de síntese)
-  var celulaDaSintese = funcao === 'Gerente' ? CELULA_SINTESE_GERENTE : CELULA_SINTESE_CONSULTOR;
-  var linhaDaSintese  = parseInt(celulaDaSintese.replace(/[A-Z]/gi, ''));
-  aba.getRange(linhaDaSintese - 1, 1, 1, ultimaColuna)
+
+  // aqui ele basicamente pega a linha acima de aonde vai ficar a síntese do desempenho do membro e coloca uma etiqueta nela, igual ao que fizemos em cima
+
+  var celulaDaSintese = funcao === 'Gerente' ? CELULA_MEDIA_GERENTE : CELULA_MEDIA_CONSULTOR
+
+  var linhaDaSintese = parseInt(celulaDaSintese.replace(/[A-Z]/gi, ''))
+
+  aba.getRange(linhaDaSintese -1 , 1, 1, ultimaColuna)
      .setBackground(cores.primaria)
      .setFontColor(cores.texto)
      .setFontWeight('bold');
 
-  aba.setTabColor(cores.primaria);
+  aba.setTabColor(cores.primaria)
 }
 
 /*
- * Grava (cria ou atualiza) o painel de um membro.
- * Idempotente: roda N vezes, resultado é o mesmo.
+ * Essa parte grava (cria ou atualiza) o painel de um membro.
+ * Idempotente: se eu rodar essa função N vezes, resultado é o mesmo, então eu posso sempre criar e alterar o painel de um membro sem precisar que ele preencha os dados novamente.
  */
-function gravarPainel(painel) {
-  log('Iniciando painel: ' + painel.pessoa + ' (' + painel.coordenacao + ')');
 
-  // ── Pasta raiz ───────────────────────────────────────────────────────────
-  var propriedades     = PropertiesService.getScriptProperties();
-  var idDaPastaDePaineis = propriedades.getProperty('PASTA_PAINEIS_ID');
+function gravarPainel(painel){
+  log('Iniciando painel: ' + painel.pessoa + ' (' + painel.coordenacao + ')')
+
+  // Pasta raíz, ou seja, a que vai conter todos os paineis, tudo, vai ser nossa pasta geralzona
+
+  var propriedades = PropertiesService.getScriptProperties()
+  var idDaPastaDePaineis = propriedades.getProperty('PASTA_PAINEIS_ID')
   var pastaDePaineis;
 
-  if (idDaPastaDePaineis) {
-    try { pastaDePaineis = DriveApp.getFolderById(idDaPastaDePaineis); } catch (e) { pastaDePaineis = null; }
+
+  // pegando a pasta geralzona
+  if(idDaPastaDePaineis){
+    try{
+      pastaDePaineis = DriveApp.getFolderById(idDaPastaDePaineis)
+    }catch (e){
+      pastaDePaineis = null
+    }
   }
-  if (!pastaDePaineis) {
-    pastaDePaineis = DriveApp.createFolder('Painéis de Membros — AD ' + CICLO_ATUAL);
-    propriedades.setProperty('PASTA_PAINEIS_ID', pastaDePaineis.getId());
-    log('Pasta raiz criada: ' + pastaDePaineis.getId());
+
+  // se ela não existir, vai criar ela
+  if(!pastaDePaineis){
+    pastaDePaineis = DriveApp.createFolder('Painéis de Membros - AD' + CICLO_ATUAL)
+    propriedades.setProperty('PASTA_PAINEIS_ID', pastaDePaineis.getId())
   }
 
-  // ── Subpasta da coordenação ──────────────────────────────────────────────
-  var pastaDaCoordenacao = obterOuCriarSubpasta(pastaDePaineis, painel.coordenacao);
+  // subpasta das coordenações
 
-  // ── Arquivo do painel ────────────────────────────────────────────────────
-  var nomeArquivo     = 'Painel — ' + painel.pessoa;
-  var resultado       = obterOuCriarPainelFile(pastaDaCoordenacao, nomeArquivo, painel.funcao);
-  var arquivoDoPainel = resultado.file;
+  var pastaDaCoordenacao = obterOuCriarSubpasta(pastaDePaineis, painel.coordenacao)
 
-  // ── Abrir aba correta do painel ──────────────────────────────────────────
-  var spreadsheetDoPainel = SpreadsheetApp.openById(arquivoDoPainel.getId());
-  var nomeAba             = painel.funcao === 'Gerente' ? ABA_TEMPLATE_GERENTE : ABA_TEMPLATE_CONSULTOR;
-  var abaDoPainel         = spreadsheetDoPainel.getSheetByName(nomeAba);
-  if (!abaDoPainel) throw new Error('Aba "' + nomeAba + '" não encontrada no painel de ' + painel.pessoa);
+  // arquivos de painel (o painel de todos os membros)
 
-  // Limpar área de dados (mantém estrutura do template intacta)
+  var nomeArquivo = 'Painel - ' + painel.pessoa
+  // vai storar o arquivo de cada um dos membros na var resultado
+  var resultado = obterOuCriarArquivoDePainel(pastaDaCoordenacao, nomeArquivo, painel.funcao)
+  var arquivoDoPainel = resultado.file
+
+  // abrir a planilha sempre na aba correta onde estiver o painel do membro
+
+  var spreadsheetDoPainel = SpreadsheetApp.openById(arquivoDoPainel.getId())
+  var nomeAba = painel.funcao === 'Gerente' ? ABA_TEMPLATE_GERENTE : ABA_TEMPLATE_CONSULTOR
+  var abaDoPainel = spreadsheetDoPainel.getSheetByName(nomeAba)
+  // peguei a planilha, e peguei a aba específica dentro da planilha
+  if(!abaDoPainel){
+    throw new Error('Aba "' + nomeAba + '" não encontrada no painel de '+ painel.pessoa)
+  }
+
+  // Limpar a área de dados pra manter a estrutura do template intacta
+
   abaDoPainel.clearContents();
 
-  // ── Escrever cabeçalho ───────────────────────────────────────────────────
+  // escrevendo o cabeçalho da planilha
+
   var ehGerente = painel.funcao === 'Gerente';
 
-  if (ehGerente) {
-    abaDoPainel.getRange(CELULA_NOME_GERENTE  ).setValue(painel.pessoa);
-    abaDoPainel.getRange(CELULA_FUNCAO_GERENTE).setValue('Gerente de Projetos');
-    abaDoPainel.getRange(CELULA_CICLO_GERENTE ).setValue(CICLO_ATUAL);
-    abaDoPainel.getRange(CELULA_COORD_GERENTE ).setValue(painel.coordenacao);
-  } else {
+  // aqui ele vai escrever um cabeçalho com os dados, e esse vai mudar dependendo ser for gerente ou consultor
+
+  if(ehGerente){
+      abaDoPainel.getRange(CELULA_NOME_GERENTE  ).setValue(painel.pessoa);
+      abaDoPainel.getRange(CELULA_FUNCAO_GERENTE).setValue('Gerente de Projetos');
+      abaDoPainel.getRange(CELULA_CICLO_GERENTE ).setValue(CICLO_ATUAL);
+      abaDoPainel.getRange(CELULA_COORD_GERENTE ).setValue(painel.coordenacao)
+  }else{
     abaDoPainel.getRange(CELULA_NOME_CONSULTOR  ).setValue(painel.pessoa);
-    abaDoPainel.getRange(CELULA_FUNCAO_CONSULTOR).setValue('Consultor de Projetos');
-    abaDoPainel.getRange(CELULA_CICLO_CONSULTOR ).setValue(CICLO_ATUAL);
-    abaDoPainel.getRange(CELULA_COORD_CONSULTOR ).setValue(painel.coordenacao);
+      abaDoPainel.getRange(CELULA_FUNCAO_CONSULTOR).setValue('Consultor de Projetos');
+      abaDoPainel.getRange(CELULA_CICLO_CONSULTOR ).setValue(CICLO_ATUAL);
+      abaDoPainel.getRange(CELULA_COORD_CONSULTOR ).setValue(painel.coordenacao);
   }
 
-  // ── Notas por competência ────────────────────────────────────────────────
-  var competencias  = ehGerente ? COMPETENCIAS_GERENTE : COMPETENCIAS_CONSULTOR;
-  var celulasNotas  = ehGerente ? CELULAS_NOTAS_GERENTE : CELULAS_NOTAS_CONSULTOR;
-  var celulaSintese = ehGerente ? CELULA_SINTESE_GERENTE : CELULA_SINTESE_CONSULTOR;
+  // notas por competência
 
-  competencias.forEach(function(nomeCompetencia, indice) {
-    var celulaDaCompetencia = celulasNotas[indice];
-    if (!celulaDaCompetencia) return;
-    var media = painel.medias[nomeCompetencia];
-    abaDoPainel.getRange(celulaDaCompetencia).setValue(media !== null ? media : '—');
-  });
+  var competencias = ehGerente? COMPETENCIAS_GERENTE : COMPETENCIAS_CONSULTOR
+  var celulasNotas  = ehGerente ? CELULAS_NOTAS_GERENTE: CELULAS_NOTAS_CONSULTOR;
+  var celulaSintese = ehGerente ? CELULA_MEDIA_GERENTE : CELULA_MEDIA_CONSULTOR;
 
-  // ── Síntese geral ────────────────────────────────────────────────────────
-  abaDoPainel.getRange(celulaSintese).setValue(painel.mediaGeral !== null ? painel.mediaGeral : '—');
+  // pegar as notas, as competências e calcular a média do membro em cada uma das competências
 
-  // ── Cores ────────────────────────────────────────────────────────────────
-  aplicarCores(abaDoPainel, corDaCoordenacao(painel.coordenacao), painel.funcao);
+  competencias.forEach(function(nomeCompetencia, indice){
+    var celulaDaCompetencia = celulasNotas[indice]
+    if(!celulaDaCompetencia) return
+    var media = painel.medias[nomeCompetencia]
+    // mudando o valor da célula
+    abaDoPainel.getRange(celulaDaCompetencia).setValue(media !== null ? media: '-')
+  })
+
+  // síntese geral, ou seja, a média geral do membro, levando em consideração todas as competências
+
+  // basicamente, a lógica aqui e no de cima também é assim, se a nota não for nula, ele mostra na tela, se for, ele mostra esse traço
+  abaDoPainel.getRange(celulaSintese).setValue(painel.mediaGeral !== null ? painel.mediaGeral : "-")
+
+  // cores de cada coordenação (LEMBRAR QUE O CORES.GS TA COM AS CORES ERRADAS)
+
+  aplicarCores(abaDoPainel, CorDaCoordenacao(painel.coordenacao), painel.funcao)
 
   SpreadsheetApp.flush();
 
-  // ── Atualizar planilha-índice ────────────────────────────────────────────
-  atualizarIndice(painel, arquivoDoPainel.getUrl());
+  // atualizando a própria planilha índice (essa em que os scripts estão)
 
-  log('Painel de ' + painel.pessoa + ' gravado. ' + arquivoDoPainel.getUrl());
+  atualizarIndice(painel, arquivoDoPainel.getUrl())
+
+  log('Painel de ' + painel.pessoa + ' gravado. ' + arquivoDoPainel.getUrl())
 }
 
 /*
  * Insere ou atualiza a linha do membro na aba de coordenação da planilha-índice.
- * Estrutura da aba: L1=título, L2=cabeçalho, L3+=dados.
+ * Estrutura da aba: L1=título, L2=cabeçalho, L3 pra frente=dados.
  * Colunas: A=#  B=Nome  C=E-mail  D=Função  E=Link  F=Reunião Agendada  G=Reunião Realizada  H=Observações
  */
-function atualizarIndice(painel, urlDoPainel) {
-  var spreadsheet        = SpreadsheetApp.openById(ID_INDICE);
-  var abaDaCoordenacao   = spreadsheet.getSheetByName(painel.coordenacao);
-  if (!abaDaCoordenacao) {
+
+
+function atualizarIndice(painel,urlDoPainel){
+  var spreadsheet = SpreadsheetApp.openById(ID_INDICE)
+  var abaDaCoordenacao = spreadsheet.getSheetByName(painel.coordenacao)
+  if(!abaDaCoordenacao){
     log('AVISO: aba "' + painel.coordenacao + '" não encontrada na planilha-índice. Pulando.');
     return;
   }
 
-  var dadosDaAba            = abaDaCoordenacao.getDataRange().getValues();
-  var nomePessoaNormalizado = normalizarNome(painel.pessoa);
-  var linhaEncontrada       = -1;
+  // essas variáveis aqui vão pegar os dados da pessoa e em qual linha
+  var dadosDaAba = abaDaCoordenacao.getDataRange().getValues()
+  var nomePessoaNormalizado = normalizarNome(painel.pessoa)
+  var linhaEncontrada = -1
 
   // Procurar linha existente pelo nome (col B = índice 1)
   // Linhas de dados começam em dadosDaAba[2] (L3)
+
+  // ele basicamente vai procurar linhas entre as colunas B-E pra ver se vai ser necessário criar essa linha e adicionar o valor ou só editar o valor que já está ali
+
   for (var indiceDaLinha = 2; indiceDaLinha < dadosDaAba.length; indiceDaLinha++) {
     if (normalizarNome(String(dadosDaAba[indiceDaLinha][1])) === nomePessoaNormalizado) {
       linhaEncontrada = indiceDaLinha + 1; // +1 porque getValues() é 0-based e Sheet é 1-based
@@ -163,13 +217,13 @@ function atualizarIndice(painel, urlDoPainel) {
     }
   }
 
-  var labelDaFuncao = painel.funcao === 'Gerente' ? 'Gerente de Projetos' : 'Consultor de Projetos';
+  var labelDaFuncao = painel.funcao === 'Gerente' ? 'Gerente de Projetos' : 'Consultor de Projetos'
 
-  if (linhaEncontrada !== -1) {
-    // Atualizar linha existente: cols B-E (colunas 2 a 5, 1-based)
+  // se ele encontrar a linha, atualiza, se ele não encontrar, cria
+  if(linhaEncontrada !== -1){
+     // Atualizar linha existente: cols B-E (colunas 2 a 5, 1-based)
     abaDaCoordenacao.getRange(linhaEncontrada, 2, 1, 4).setValues([[painel.pessoa, painel.email, labelDaFuncao, urlDoPainel]]);
-  } else {
-    // Adicionar nova linha
+  }else{
     var numeroDaLinha = abaDaCoordenacao.getLastRow() - 1; // linhas de dados anteriores = lastRow - título - cabeçalho + 1
     abaDaCoordenacao.appendRow([numeroDaLinha, painel.pessoa, painel.email, labelDaFuncao, urlDoPainel, false, false, '']);
   }

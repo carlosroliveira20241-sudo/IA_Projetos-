@@ -1,10 +1,12 @@
 // =============================================================
-// Util.gs — Logger, normalizarNome, slugNome
+// funções auxiliares: gravar coisas no log e normalizar os nomes, é uma parte mais técnica
 // =============================================================
 
+
+// escrever mensagens de log, pra documentar uso e possíveis erros da planilha
 function log(msg) {
   try {
-    var ss  = SpreadsheetApp.openById(INDICE_ID);
+    var ss  = SpreadsheetApp.openById(ID_INDICE);
     var aba = ss.getSheetByName(ABA_LOG);
     if (!aba) {
       aba = ss.insertSheet(ABA_LOG);
@@ -13,22 +15,15 @@ function log(msg) {
     }
     aba.appendRow([new Date(), String(msg)]);
   } catch (e) {
-    Logger.log('[LOG FAIL] ' + msg + ' | erro: ' + e);
+    Logger.log(msg + ' | erro: ' + e);
   }
 }
 
-// Remove acentos, lowercase, trim.
+// Deixa todos os nomes no mesmo formato, pra ajudar a tratar esses dados depois
 function normalizarNome(s) {
   return String(s || '')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .trim();
-}
-
-// Versão slug para nome de arquivo no Drive (kebab, apenas ASCII).
-function slugNome(s) {
-  return normalizarNome(s)
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '');
 }

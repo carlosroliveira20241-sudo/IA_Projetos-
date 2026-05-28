@@ -1,6 +1,8 @@
 // =============================================================
-// Coordenacoes.gs — Paleta de cores fechada por coordenação
+//  Paleta de cores fechada por coordenação
 // =============================================================
+
+// TEM QUE MUDAR ESSAS CORES, ELAS NÃO TÃO CERTAS
 
 var PALETA = {
   'ACE':     { primaria: '#6A1B9A', secundaria: '#F3E5F5', texto: '#FFFFFF' },
@@ -11,6 +13,8 @@ var PALETA = {
   'DEFAULT': { primaria: '#424242', secundaria: '#F5F5F5', texto: '#FFFFFF' }
 };
 
-function corDaCoordenacao(coord) {
+// função que retorna a cor da paleta de cores da coordenação
+
+function CorDaCoordenacao(coord){
   return PALETA[coord] || PALETA['DEFAULT'];
 }
