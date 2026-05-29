@@ -11,7 +11,7 @@ A Fluxo Consultoria realiza ciclos periódicos de Avaliação de Desempenho 360�
 
 A organização tem 5 coordenações: ACE, CCE, QAB, PRO, MNP. Cada membro tem uma função: Consultor de Projetos ou Gerente de Projetos.
 
----
+--- 
 
 ## Arquitetura — 8 arquivos .gs (em src/)
 
